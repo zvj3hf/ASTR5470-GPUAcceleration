@@ -1,5 +1,5 @@
-example: airy
-backend: auto
+example: radiative_transfer
+backend: cuda
 
 grid:
     N: 400
@@ -19,7 +19,7 @@ airy:
 monte_carlo:
     n_points: 100000
 
-rad_transfer:
+radiative_transfer:
     n_rays: 100000
     n_cells: 100
     optical_depth: 5.0
