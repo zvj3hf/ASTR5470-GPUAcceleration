@@ -1,0 +1,28 @@
+example: airy
+backend: auto
+
+grid:
+    N: 400
+    x_min: -10
+    x_max: 10
+    y_min: -10
+    y_max: 10
+
+cuda:
+    threads_per_block_x: 16
+    threads_per_block_y: 16
+
+airy:
+    taylor: 150
+    cut: 8.0
+
+monte_carlo:
+    n_points: 100000
+
+rad_transfer:
+    n_rays: 100000
+    n_cells: 100
+    optical_depth: 5.0
+
+output:
+    output_dir: outputs/run01
