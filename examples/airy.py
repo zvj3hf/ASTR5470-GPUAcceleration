@@ -6,8 +6,9 @@ Example code for GPU acceleration with Airy functions. Comparing CPU and GPU run
 
 import math
 import numpy as np
-from scipy.special import gamma,airy
+from scipy.special import airy, gamma
 from numba import cuda
+
 
 def make_grid(N, x_min=-10, x_max=10, y_min=-10, y_max=10):
     """Create a 2D complex grid z = x + iy."""
@@ -50,7 +51,7 @@ def airy_cpu(Z, coeffs):
 
 @cuda.jit
 def airy_cuda_kernel(Z_real, Z_imag, coeffs, magnitude, n_terms):
-    """CUDA kernel: each thread computes |Ai(z)| for one grid point."""
+    """CUDA kernel: each thread computes Ai(z) for one grid point."""
     i, j = cuda.grid(2)
 
     if i < magnitude.shape[0] and j < magnitude.shape[1]:
@@ -83,31 +84,80 @@ def airy_cuda(X, Y, coeffs, threads_per_block=(16, 16)):
 
     magnitude_gpu = cuda.device_array(X.shape, dtype=np.float64)
 
-    blocks_per_grid = (
-        math.ceil(X.shape[0] / threads_per_block[0]),
-        math.ceil(X.shape[1] / threads_per_block[1]),
-    )
+    blocks_per_grid = (math.ceil(X.shape[0] / threads_per_block[0]),math.ceil(X.shape[1] / threads_per_block[1]),)
 
-    airy_cuda_kernel[blocks_per_grid, threads_per_block](
-        Z_real_gpu,
-        Z_imag_gpu,
-        coeffs_gpu,
-        magnitude_gpu,
-        n_terms,
-    )
+    airy_cuda_kernel[blocks_per_grid, threads_per_block](Z_real_gpu,Z_imag_gpu,coeffs_gpu,magnitude_gpu,n_terms,)
 
     cuda.synchronize()
 
     return magnitude_gpu.copy_to_host()
 
 
+def asymptotic_coeffs(n_terms):
+    """Compute coefficients used in the Airy asymptotic approximations."""
+    coeffs = np.ones(n_terms, dtype=complex)
+
+    for k in range(1, n_terms):
+        coeffs[k] = ((6 * k - 5) * (6 * k - 1)) / (48 * k) * coeffs[k - 1]
+
+    return coeffs
+
+
+def airy_asymp_pos(z, coeffs):
+    """Asymptotic approximation for Ai(z) on the positive-real side."""
+    z = np.asarray(z, dtype=complex)
+
+    zeta = (2 / 3) * z**1.5
+
+    series = sum(((-1) ** k) * coeffs[k] / zeta**k
+        for k in range(len(coeffs)))
+
+    return np.exp(-zeta) / (2 * np.sqrt(np.pi) * z**0.25) * series
+
+
+def airy_asymp_neg(z, coeffs):
+    """Asymptotic approximation for Ai(z) on the negative-real side."""
+    w = -np.asarray(z, dtype=complex)
+
+    zeta = (2 / 3) * w**1.5
+    phi = zeta - np.pi / 4
+
+    n_terms = len(coeffs)
+
+    even = sum(((-1) ** k) * coeffs[2 * k] / zeta ** (2 * k)
+        for k in range(n_terms // 2))
+
+    odd = sum(((-1) ** k) * coeffs[2 * k + 1] / zeta ** (2 * k + 1)
+        for k in range((n_terms - 1) // 2))
+
+    return (1 / np.sqrt(np.pi)) * w ** (-0.25) * (
+        np.cos(phi) * even - np.sin(phi) * odd)
+
+
+def airy_spliced(Z, taylor_coeffs, cut=8.0, n_pos=50, n_neg=40):
+    """
+    Compute a spliced approximation to Ai(z).
+
+    Uses the Taylor series for |z| <= cut and asymptotic approximations
+    for |z| > cut.
+    """
+    Ai_mid = airy_cpu(Z, taylor_coeffs)
+
+    pos_coeffs = asymptotic_coeffs(n_pos)
+    neg_coeffs = asymptotic_coeffs(n_neg)
+
+    Ai_tail = np.where(Z.real >= 0,airy_asymp_pos(Z, pos_coeffs),airy_asymp_neg(Z, neg_coeffs),)
+
+    return np.where(np.abs(Z) <= cut, Ai_mid, Ai_tail)
+
+
 def airy_scipy(x):
-    """Getting a reference value from Scipy"""
+    """Return SciPy's Ai(x) value on the real axis."""
     return airy(x)[0]
 
 
 def find_roots(values, x):
-    """Estimate roots of the function."""
+    """Estimate roots from sign changes using linear interpolation."""
     sign_changes = np.where(np.sign(values[:-1]) * np.sign(values[1:]) < 0)[0]
 
     roots = []
