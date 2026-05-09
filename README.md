@@ -52,7 +52,7 @@ Run performance check with:
 
 ```bash
 python scripts/benchmark.py
-
+```
 # Outputs
 
 This code generates:
