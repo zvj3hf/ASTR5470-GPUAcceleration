@@ -1,5 +1,5 @@
 """
-First test for the algorithm: Airy Functions
+First test for the algorithm: Airy Functions. Does the CPU match the GPU?
 """
 
 ## IMPORTS ##
