@@ -20,3 +20,17 @@ Current tests/examples implemented:
 - GPU validation tests (checking that the GPU and CPU results match)
 - Reusable and customizable CUDA launch configuration
 
+# Installation
+
+conda create -n gpu_algorithm python=3.11
+conda activate gpu_algorithm
+
+# Running Examples
+
+python -m scripts.run_example --config config/default.yaml
+
+Change the example in config/default.yaml for whichever example you wish to run.
+
+# Testing
+pytest tests/ -v
+
